@@ -1,0 +1,34 @@
+{
+  "name": "centralops",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server",
+    "worker",
+    "packages/*"
+  ],
+  "scripts": {
+    "check:config": "node scripts/check-config.mjs",
+    "dev": "concurrently -k -n api,worker,client \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:client\"",
+    "dev:api": "npm run dev --workspace=@centralops/server",
+    "dev:worker": "npm run dev --workspace=@centralops/worker",
+    "dev:client": "npm run dev --workspace=@centralops/client",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspace=@centralops/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:local": "node scripts/dev-local.mjs",
+    "build:frontend": "node scripts/build-frontend.mjs",
+    "build:api": "npm run build --workspace=@centralops/server",
+    "build:worker": "npm run build --workspace=@centralops/server && npm run build --workspace=@centralops/worker"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "mongodb-memory-server-core": "^11.3.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "license": "MIT"
+}

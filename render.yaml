@@ -1,0 +1,76 @@
+# Repository root must be the build root for both services.
+# Starter API and worker services incur Render charges; review before applying.
+envVarGroups:
+  - name: orbitops-runtime
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_FORMAT
+        value: text
+      - key: LOG_HTTP_REQUESTS
+        value: "false"
+services:
+  - type: web
+    name: orbitops-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build:api
+    startCommand: npm run start --workspace=@centralops/server
+    healthCheckPath: /api/v1/health/ready
+    envVars:
+      - fromGroup: orbitops-runtime
+      - key: WORKSPACE_MAX_WEBSITES
+        value: "25"
+      - key: WORKSPACE_MAX_ENDPOINTS
+        value: "100"
+      - key: WORKSPACE_MAX_RECORDS
+        value: "1000"
+      - key: WORKSPACE_MAX_PENDING_JOBS
+        value: "25"
+      - key: AUTH_SESSION_DAYS
+        value: "2"
+      - key: AUTH_PROVIDER
+        value: firebase
+      - key: PUBLIC_REGISTRATION
+        value: "true"
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
+        sync: false
+  - type: worker
+    name: orbitops-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build:worker
+    startCommand: npm run start --workspace=@centralops/worker
+    envVars:
+      - fromGroup: orbitops-runtime
+      - key: CLIENT_ORIGIN
+        fromService:
+          type: web
+          name: orbitops-api
+          envVarKey: CLIENT_ORIGIN
+      - key: MONGODB_URI
+        fromService:
+          type: web
+          name: orbitops-api
+          envVarKey: MONGODB_URI
+      - key: INTEGRATION_ENCRYPTION_KEY
+        fromService:
+          type: web
+          name: orbitops-api
+          envVarKey: INTEGRATION_ENCRYPTION_KEY

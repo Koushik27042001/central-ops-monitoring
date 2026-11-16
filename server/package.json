@@ -1,0 +1,41 @@
+{
+  "name": "@centralops/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --import tsx --watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "seed": "node --import tsx src/seed.ts",
+    "migrate:indexes": "node --import tsx src/migrate.ts",
+    "migrate:workspace": "node --import tsx src/migrate-workspace.ts",
+    "pretest": "npm run build"
+  },
+  "dependencies": {
+    "@centralops/shared": "*",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "firebase-admin": "^14.5.1",
+    "helmet": "^8.1.0",
+    "mongoose": "^8.19.3",
+    "pino": "^9.14.0",
+    "pino-http": "^10.5.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.0",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
+  },
+  "license": "MIT"
+}

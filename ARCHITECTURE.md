@@ -1,0 +1,11 @@
+# Architecture
+
+npm workspaces: client (React/Vite/Tailwind), server (Express/Mongoose), worker (MongoDB leased scheduler), shared (response contracts).
+
+The browser uses same-origin /api/v1 requests with a signed Firebase session JWT in an HttpOnly cookie; private local-auth installations use their local session cookie. Both expire after two days by default. Firebase ID tokens are exchanged only after recent sign-in and cannot silently extend the application session. Vite proxies development requests to port 4000. MongoDB stores sessions, management records, monitoring targets and results. The API and persistent worker use MongoDB. The worker atomically leases due records, performs checks, records results, and updates website health. Expired leases allow crash recovery. Three consecutive failed checks open an incident; an UP result resolves it. In-app notifications are persisted.
+
+Build the server before the worker because it imports server/dist models and outbound HTTP service. Do not deploy the worker as a serverless function. Public Firebase registration creates OWNER accounts. Each user ID identifies a private workspace. Management routes use an AsyncLocalStorage request context and owner-scoped model facade; queries, upserts, writes and aggregations fail closed without a context. Workers propagate ownership from website/job records. Legacy unowned records remain hidden until explicitly migrated. Even legacy SUPER_ADMIN accounts cannot bypass ownership.
+
+Models cover the full requested domain, but several models are preparatory. Consult README delivery status for executable workflows and limitations. Multi-document website/target updates are not transactional; a failed save can require retrying website settings. Background delivery is at least once, not exactly once.
+
+The publishing scheduler also discovers due PublishingJob records and atomically leases publishing snapshots in MongoDB. The server persists jobs using MongoDB. Worker delivery uses encrypted credentials and the same SSRF-restricted HTTPS client as monitoring. API endpoint targets link to ApiEndpoint records and write both MonitoringCheck and ApiCheckResult collections. The optional client SDK accepts explicitly allowed blog content and delegates persistence/idempotency to a client-owned adapter.
