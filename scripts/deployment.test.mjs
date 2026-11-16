@@ -1,21 +1,43 @@
 import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
 import { test } from 'node:test';
-
-test('Vercel proxies APIs before SPA routes and never exposes secrets', async () => {
- const previous=process.env.RENDER_API_ORIGIN;
- try {
-  process.env.RENDER_API_ORIGIN='https://orbitops-api.example';
-  const {config}=await import('../vercel.mjs?valid');
-  assert.equal(config.outputDirectory,'client/dist');
-  assert.deepEqual(config.rewrites[0],{source:'/api/:path*',destination:'https://orbitops-api.example/api/:path*'});
-  assert.equal(config.rewrites[1].destination,'/index.html');
-  assert.ok(new RegExp('^'+config.rewrites[1].source+'$').test('/features'));
-  assert.ok(!new RegExp('^'+config.rewrites[1].source+'$').test('/api/v1/health/ready'));
-  assert.ok(!new RegExp('^'+config.rewrites[1].source+'$').test('/api'));
-  assert.ok(!JSON.stringify(config).includes('MONGODB_URI'));
-  for (const [index,value] of [undefined,'http://example.com','https://user:password@example.com','https://example.com/api/v1','https://example.com?token=secret'].entries()){
-   if(value===undefined)delete process.env.RENDER_API_ORIGIN;else process.env.RENDER_API_ORIGIN=value;
-   await assert.rejects(import('../vercel.mjs?invalid'+index),/Set RENDER_API_ORIGIN/);
-  }
- } finally {if(previous===undefined)delete process.env.RENDER_API_ORIGIN;else process.env.RENDER_API_ORIGIN=previous;}
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { validateRenderApiOrigin } from './render-api-origin.mjs';
+const config=JSON.parse(readFileSync(new URL('../vercel.json',import.meta.url),'utf8'));
+test('Vercel has one static routing configuration with explicit destinations',()=>{
+ assert.equal(existsSync(new URL('../vercel.mjs',import.meta.url)),false);
+ assert.equal(config.outputDirectory,'client/dist');
+ assert.equal(config.buildCommand,'npm run build:frontend');
+ assert.equal(config.installCommand,'npm ci --include=dev');
+ assert.equal(config.rewrites,undefined);assert.equal(config.headers,undefined);
+ for(const route of config.routes)assert.ok(route.handle||route.continue||typeof route.dest==='string');
+ assert.ok(!JSON.stringify(config).includes('MONGODB_URI'));
+});
+test('API routes resolve the configured backend before any SPA fallback',()=>{
+ const proxy=config.routes.find(route=>route.env?.includes('RENDER_API_ORIGIN'));
+ assert.equal(proxy.dest,'$RENDER_API_ORIGIN/api/$1');
+ assert.equal(proxy.headers['Cache-Control'],'private, no-store');
+ const origin=validateRenderApiOrigin('https://orbitops-api.example');
+ for(const path of ['/api/v1/auth/session','/api/v1/clients','/api/v1/health/ready','/api']){
+  const match=path.match(new RegExp('^'+proxy.src));assert.ok(match);
+  const destination=proxy.dest.replace('$RENDER_API_ORIGIN',origin).replace('$1',match[1]||'');
+  assert.equal(destination,origin+path+(path==='/api'?'/':''));
+ }
+ const fallback=config.routes.at(-1);
+ assert.equal(fallback.dest,'/index.html');
+ for(const path of ['/features','/login','/privacy','/clients'])assert.ok(new RegExp('^'+fallback.src+'$').test(path));
+ for(const path of ['/api','/api/v1/clients'])assert.ok(!new RegExp('^'+fallback.src+'$').test(path));
+ assert.ok(config.routes.findIndex(route=>route.handle==='filesystem')<config.routes.length-1);
+});
+test('missing or unsafe backend addresses fail with an actionable build message',()=>{
+ for(const value of [undefined,'','http://example.com','https://user:password@example.com','https://example.com/api/v1','https://example.com?token=secret','https://example.com/'])assert.throws(()=>validateRenderApiOrigin(value),/Set RENDER_API_ORIGIN/);
+});
+test('a missing deployment origin stops before compilation with a clear message',()=>{
+ const environment={...process.env};delete environment.RENDER_API_ORIGIN;
+ const result=spawnSync(process.execPath,[fileURLToPath(new URL('./build-frontend.mjs',import.meta.url))],{env:environment,encoding:'utf8'});
+ assert.equal(result.status,1);
+ assert.match(result.stderr,/DEPLOYMENT SETTING NEEDED/);
+ assert.match(result.stderr,/RENDER_API_ORIGIN/);
+ assert.ok(!result.stderr.includes('at validateRenderApiOrigin'));
 });

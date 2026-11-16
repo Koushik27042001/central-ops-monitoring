@@ -20,7 +20,8 @@
     "dev:local": "node scripts/dev-local.mjs",
     "build:frontend": "node scripts/build-frontend.mjs",
     "build:api": "npm run build --workspace=@centralops/server",
-    "build:worker": "npm run build --workspace=@centralops/server && npm run build --workspace=@centralops/worker"
+    "build:worker": "npm run build --workspace=@centralops/server && npm run build --workspace=@centralops/worker",
+    "test:deployment": "node --test scripts/deployment.test.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

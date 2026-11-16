@@ -1,5 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { validateRenderApiOrigin } from './render-api-origin.mjs';
+// Validate at build time, where Vercel's environment is available.
+try{validateRenderApiOrigin(process.env.RENDER_API_ORIGIN);}
+catch(error){console.error('\n  DEPLOYMENT SETTING NEEDED\n  '+error.message+'\n');process.exit(1);}
 const root = fileURLToPath(new URL("../", import.meta.url));
 // Keep browser API requests on the Vercel origin so secure session cookies are first-party.
 const result = spawnSync(process.execPath, [fileURLToPath(new URL("../node_modules/typescript/bin/tsc", import.meta.url)), "-b", "client/tsconfig.json"], {cwd:root,stdio:"inherit"});

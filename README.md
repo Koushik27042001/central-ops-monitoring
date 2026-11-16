@@ -110,4 +110,4 @@ See ARCHITECTURE.md, API_DOCUMENTATION.md, INTEGRATION_GUIDE.md, DEPLOYMENT_GUID
 
 ## Vercel frontend and Render backend
 
-Follow [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md). Import the repository root in Vercel, set RENDER_API_ORIGIN to the Render API origin, and use the root vercel.mjs configuration. The Render Blueprint deploys the API and a separate background worker. No hosting deployment has been performed from this workspace.
+Follow [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md). Import the repository root in Vercel, set RENDER_API_ORIGIN to the Render API origin, and use the root vercel.json configuration. The Render Blueprint deploys the API and a separate background worker. No hosting deployment has been performed from this workspace.

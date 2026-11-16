@@ -39,13 +39,13 @@ In MongoDB Atlas > Network Access, allow the outbound addresses/ranges shown in 
 
 ## Vercel
 
-Import the same repository and choose the REPOSITORY ROOT, not client/ or server/, as Root Directory. The root vercel.mjs provides the framework, install, build, and output settings.
+Import the same repository and choose the REPOSITORY ROOT, not client/ or server/, as Root Directory. The root vercel.json provides the framework, install, build, and output settings.
 
 Add the following Vercel environment variable, then redeploy:
 
 RENDER_API_ORIGIN=https://YOUR-ACTUAL-API.onrender.com
 
-Use the Render web service origin, without /api/v1 or a dashboard path. The config intentionally fails if this value is missing or invalid. Vercel rewrites /api/* to Render before the SPA fallback, so browser requests remain on the frontend origin. The frontend build forces VITE_API_BASE_URL=/api/v1. Login cookies stay HttpOnly, Secure in production, SameSite=Strict, and scoped to /api/v1. API responses are private and not cached.
+Use the Render web service origin, without /api/v1 or a dashboard path. The frontend build stops with a clear setup message if this value is missing or invalid. Enter the HTTPS origin without a trailing slash. The static routing configuration resolves RENDER_API_ORIGIN from the deployment environment. Vercel rewrites /api/* to Render before the SPA fallback, so browser requests remain on the frontend origin. The frontend build forces VITE_API_BASE_URL=/api/v1. Login cookies stay HttpOnly, Secure in production, SameSite=Strict, and scoped to /api/v1. API responses are private and not cached.
 
 Add VITE_AUTH_PROVIDER=firebase and your public VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID, and VITE_FIREBASE_APP_ID to Vercel. Enable Email/Password and Google in Firebase Authentication and authorize the Vercel/custom domain. Do not add MongoDB credentials, integration encryption keys, or admin passwords to Vercel or VITE_ variables. CLIENT_ORIGIN must match the production Vercel URL; changing it or your custom domain requires updating Render. Keep previews isolated from production accounts and data.
 
