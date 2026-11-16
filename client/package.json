@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "build:frontend": "node ../scripts/build-frontend.mjs"
   },
   "dependencies": {
     "@centralops/shared": "*",

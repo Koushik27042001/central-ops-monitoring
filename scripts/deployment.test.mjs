@@ -41,3 +41,21 @@ test('a missing deployment origin stops before compilation with a clear message'
  assert.match(result.stderr,/RENDER_API_ORIGIN/);
  assert.ok(!result.stderr.includes('at validateRenderApiOrigin'));
 });
+test('the deployment build script also runs from the client workspace',()=>{
+ const client=JSON.parse(readFileSync(new URL('../client/package.json',import.meta.url),'utf8'));
+ const environment={...process.env};delete environment.RENDER_API_ORIGIN;
+ assert.equal(client.scripts['build:frontend'],'node ../scripts/build-frontend.mjs');
+ const result=spawnSync(process.execPath,['../scripts/build-frontend.mjs'],{cwd:fileURLToPath(new URL('../client/',import.meta.url)),env:environment,encoding:'utf8'});
+ assert.equal(result.status,1);
+ assert.match(result.stderr,/DEPLOYMENT SETTING NEEDED/);
+ assert.ok(!result.stderr.includes('Cannot find module'));
+});
+test('reviewed build install scripts are approved for the locked package versions',()=>{
+ const root=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+ const lock=JSON.parse(readFileSync(new URL('../package-lock.json',import.meta.url),'utf8'));
+ for(const name of ['esbuild','protobufjs']){
+  const version=lock.packages['node_modules/'+name].version;
+  assert.equal(root.allowScripts[name+'@'+version],true);
+ }
+ assert.equal(root.allowScripts['*'],undefined);
+});

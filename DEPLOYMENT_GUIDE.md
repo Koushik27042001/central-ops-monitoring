@@ -41,6 +41,8 @@ In MongoDB Atlas > Network Access, allow the outbound addresses/ranges shown in 
 
 Import the same repository and choose the REPOSITORY ROOT, not client/ or server/, as Root Directory. The root vercel.json provides the framework, install, build, and output settings.
 
+Use Framework Preset Other, Build Command `npm run build:frontend`, Output Directory `client/dist`, and Install Command `npm ci --include=dev`. The client workspace also provides the build alias for npm workspace-scoped execution, but the Vercel Root Directory must remain the repository root so it loads the root routing configuration. The root package approves the locked esbuild and protobufjs install scripts for npm versions that require explicit approvals. A `cache-dir` npm warning does not cause a missing build-script error; if you manually added `NPM_CONFIG_CACHE_DIR` to hosting variables, remove it or use the supported `NPM_CONFIG_CACHE` key.
+
 Add the following Vercel environment variable, then redeploy:
 
 RENDER_API_ORIGIN=https://YOUR-ACTUAL-API.onrender.com
