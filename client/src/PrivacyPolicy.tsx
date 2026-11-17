@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { BrandLogo } from './BrandLogo';
 
 export function PrivacyPolicyContent() {
  return <>  <p>This notice describes how this workspace uses information when you sign in and manage monitoring services.</p>
@@ -18,5 +19,5 @@ export function TermsContent() {
  </>;
 }
 export function PrivacyPolicy() {
- return <main className="privacy-page"><article className="panel privacy-policy"><div className="eyebrow">ORBITOPS</div><h1>Privacy Policy</h1><PrivacyPolicyContent/><h2>Terms and Conditions</h2><TermsContent/><Link to="/dashboard" className="privacy-back">Back to sign in</Link></article></main>;
+ return <main className="privacy-page"><article className="panel privacy-policy"><Link className="login-brand" to="/" aria-label="OrbitOps home"><BrandLogo/></Link><h1>Privacy Policy</h1><PrivacyPolicyContent/><h2>Terms and Conditions</h2><TermsContent/><Link to="/dashboard" className="privacy-back">Back to sign in</Link></article></main>;
 }

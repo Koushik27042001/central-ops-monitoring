@@ -1,3 +1,4 @@
+import { BrandLogo } from "./BrandLogo";
 import { useState } from "react";
 import { DemoEnquiry } from "./DemoEnquiry";
 import { Link } from "react-router-dom";
@@ -17,7 +18,7 @@ export function HomePage() {
   return <div className="orbit-home">
     <a className="home-skip" href="#home-main">Skip to content</a>
     <header className="home-header">
-      <Link className="home-wordmark" to="/" aria-label="OrbitOps home"><span className="home-brand-symbol"><Activity size={24}/></span>Orbit<span>Ops</span><span className="home-brand-dot"/></Link>
+      <Link className="home-wordmark" to="/" aria-label="OrbitOps home"><BrandLogo/></Link>
       <nav aria-label="Homepage navigation" className="home-nav"><Link to="/features">Features</Link><a href="#how-it-works">How it works</a><Link to="/login">Login <ChevronRight size={14}/></Link></nav>
       <button type="button" className="home-button home-button-small home-demo-trigger" onClick={() => setDemoOpen(true)}>Get Demo <ArrowRight size={15}/></button>
     </header>
@@ -38,7 +39,7 @@ export function HomePage() {
       <section className="home-workflow home-section" id="how-it-works" aria-labelledby="workflow-title"><div className="home-workflow-visual"><div className="home-workflow-tag"><Activity size={16}/> From URL to useful insight</div><img src={workflowIllustration} alt="Illustration of an OrbitOps laptop dashboard showing website availability and API monitoring" width={1752} height={897} loading="lazy"/><p>Illustrative dashboard. Your workspace shows your actual monitoring results.</p></div><div className="home-workflow-copy"><span className="home-kicker">02 / A SIMPLE WAY TO START</span><h2 id="workflow-title">Connect. Monitor.<br/><span>Stay Ahead.</span></h2><p>From your first website to your everyday operations, keep everything in one place.</p><ol className="home-steps"><li><span>01</span><div><h3>Register your website</h3><p>Sign in, add a client, and register the website you want to keep track of.</p></div></li><li><span>02</span><div><h3>Connect your backend or API</h3><p>Add your Render backend, health endpoint, or API URL and choose what a healthy response looks like.</p></div></li><li><span>03</span><div><h3>See your monitoring results</h3><p>Enable monitoring and review uptime, response times, and incidents as checks run.</p></div></li></ol><Link className="home-inline-link" to="/dashboard">Go to your command center <ArrowRight size={17}/></Link></div></section>
       <section className="home-cta home-section" aria-labelledby="cta-title"><div className="home-cta-orbit" aria-hidden="true"/><div><span className="home-kicker">LESS COMPLEXITY. MORE CLARITY.</span><h2 id="cta-title">Your Digital Operations,<br/><span>Simplified.</span></h2><p>Bring all your websites, APIs, and alerts together.</p></div><div className="home-cta-action"><Link className="home-button" to="/dashboard">Open Dashboard <ArrowRight size={19}/></Link><span>Your next clear view starts here.</span></div></section>
     </main>
-    <footer className="home-footer"><Link className="home-wordmark" to="/"><span className="home-brand-symbol"><Activity size={19}/></span>Orbit<span>Ops</span></Link><p>Copyright &copy; {new Date().getFullYear()} OrbitOps. MIT licensed code.</p><a href="#home-main">Back to top</a></footer>
+    <footer className="home-footer"><Link className="home-wordmark" to="/"><BrandLogo/></Link><p>Copyright &copy; {new Date().getFullYear()} OrbitOps. MIT licensed code.</p><a href="#home-main">Back to top</a></footer>
     {demoOpen && <DemoEnquiry onClose={() => setDemoOpen(false)}/>}
   </div>;
 }
