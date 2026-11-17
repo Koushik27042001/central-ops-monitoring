@@ -41,6 +41,18 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await mongoose.disconnect();await mongo?.stop();});
 describe('private freelancer workspaces',()=>{
+ it('creates and lists a website with every monitoring URL using runtime database settings',async()=>{
+  const previous=mongoose.get('strictQuery');mongoose.set('strictQuery',true);
+  try{
+   const client=await Client.create({ownerId:owners.a,name:'Website client'});
+   const input={clientId:String(client._id),name:'Client website',frontendUrl:'https://example.com',backendUrl:'https://example.com/api',adminUrl:'https://example.com/admin',healthUrl:'https://example.com/health',readinessUrl:'https://example.com/ready',monitoringEnabled:true,monitoringInterval:60};
+   const response=await request(app).post('/api/v1/websites').set('Origin','http://localhost:5173').send(input);
+   expect(response.body.error).toBeUndefined();expect(response.status).toBe(201);
+   expect(await MonitoringTarget.countDocuments({websiteId:response.body.data._id,ownerId:owners.a})).toBe(5);
+   const listed=await request(app).get('/api/v1/websites');
+   expect(listed.status).toBe(200);expect(listed.body.data).toEqual([expect.objectContaining(input)]);
+  }finally{mongoose.set('strictQuery',previous);}
+ });
  it('reports configured limits only through an authenticated route',async()=>{
   const response=await request(app).get('/api/v1/auth/limits');
   expect(response.status).toBe(200);

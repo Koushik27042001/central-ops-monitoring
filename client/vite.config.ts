@@ -26,7 +26,19 @@ export default defineConfig(({ mode }) => {
     port,
     strictPort: true,
     proxy: {
-      "/api": proxyTarget,
+      "/api": {
+        target: proxyTarget,
+        configure(proxy) {
+          proxy.on('error', (_error, _request, response) => {
+            if (!('writeHead' in response) || response.headersSent || response.writableEnded) return;
+            response.writeHead(503, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
+            response.end(JSON.stringify({error: {
+              code: 'API_UNAVAILABLE',
+              message: 'The website service is unavailable. Start the backend and check its database connection, then try saving again.',
+            }}));
+          });
+        },
+      },
     },
   },
   };
