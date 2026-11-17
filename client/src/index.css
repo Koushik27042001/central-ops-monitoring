@@ -59,3 +59,5 @@
 @media(max-height:480px){.policy-dialog{width:min(480px,calc(100vw - 24px));height:calc(100dvh - 24px);max-height:calc(100dvh - 24px)}.policy-dialog-heading,.policy-dialog-content,.policy-dialog-actions{padding:12px}.policy-dialog-heading h2{font-size:16px}.policy-dialog-actions{gap:8px}}
 
 .login-brand{display:block;width:210px;max-width:100%}.footer-brand{display:block;width:120px;max-width:100%}.content>footer{align-items:center;gap:16px}
+
+.badge.stale{background:#fff8e5;color:#b98a1e}

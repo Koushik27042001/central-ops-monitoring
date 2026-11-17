@@ -1,4 +1,6 @@
 import { inWorkspace, workspaceModel } from "../services/workspace.js";
+import { endpointHealth } from '../services/endpoint-health.js';
+import { ApiCheckResult as RawApiCheckResult } from '../models/index.js';
 import { FIREBASE_SESSION_COOKIE, firebaseSessionCookie, sessionCookieOptions, sessionLifetimeMs } from '../services/session.js';
 import { firebaseAdminAuth } from "../services/firebase.js";
 import { encryptSecret } from "../services/secrets.js";
@@ -18,6 +20,7 @@ const Integration = workspaceModel(RawIntegration);
 const CredentialRotation = workspaceModel(RawCredentialRotation);
 const PublishingJob = workspaceModel(RawPublishingJob);
 const ApiEndpoint = workspaceModel(RawApiEndpoint);
+const ApiCheckResult = workspaceModel(RawApiCheckResult);
 const MaintenanceRecord = workspaceModel(RawMaintenanceRecord);
 const BlogRevision = workspaceModel(RawBlogRevision);
 const AuditLog = workspaceModel(RawAuditLog);
@@ -126,9 +129,9 @@ for (const resource of resources) {
   if (req.query.status) filter.status = z.string().regex(/^[A-Z_]{2,30}$/).parse(req.query.status);
   if (req.query.search) {const search = z.string().max(100).parse(req.query.search); filter[path === "tickets" || path === "blogs" ? "title" : path === "maintenance" ? "description" : "name"] = {$regex: search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i"};}
   const [data, total] = await Promise.all([model.find(filter).sort({createdAt: -1}).skip((page-1)*limit).limit(limit), model.countDocuments(filter)]);
-  res.json({data, pagination: {page, limit, total}});
+  res.json({data: path === 'api-endpoints' ? await endpointHealth(data) : data, pagination: {page, limit, total}});
  });
- managementRouter.get(`/${path}/:id`, async (req, res) => {const data = await model.findById(id.parse(req.params.id)); res.status(data ? 200 : 404).json(data ? {data} : {error: {code: "NOT_FOUND", message: "Record not found"}});});
+ managementRouter.get(`/${path}/:id`, async (req, res) => {const data = await model.findById(id.parse(req.params.id)); res.status(data ? 200 : 404).json(data ? {data: path === 'api-endpoints' ? (await endpointHealth([data]))[0] : data} : {error: {code: "NOT_FOUND", message: "Record not found"}});});
  for (const method of ["post", "patch"] as const) managementRouter[method](`/${path}${method === "patch" ? "/:id" : ""}`, async (req, res) => {
   res.locals.saveStage = `${path}:validate`;
   const input = method === "post" ? schema.parse(req.body) : parsePatch(schema, req.body);
@@ -207,8 +210,15 @@ managementRouter.post("/api-endpoints/:id/check-now", async (req, res) => {
  const endpoint = await ApiEndpoint.findById(id.parse(req.params.id));
  if (!endpoint) {res.status(404).json({error: {code: "NOT_FOUND", message: "Endpoint not found"}}); return;}
  if (!endpoint.get("isActive")) {res.status(409).json({error: {code: "PAUSED", message: "Enable the endpoint before checking"}}); return;}
- await MonitoringTarget.updateOne({endpointId: endpoint._id}, {$set: {nextCheckAt: new Date()}});
+ const website = await Website.findById(endpoint.get('websiteId'));
+ if (!website?.get('monitoringEnabled')) {res.status(409).json({error:{code:'PAUSED',message:'Enable website monitoring before checking this endpoint'}});return;}
+ await MonitoringTarget.updateOne({endpointId: endpoint._id}, {$set: {endpointId:endpoint._id,websiteId:endpoint.get('websiteId'),type:'API',name:endpoint.get('name'),url:endpoint.get('url'),method:endpoint.get('method'),expectedStatus:endpoint.get('expectedStatus'),timeoutMs:endpoint.get('timeoutMs'),intervalSeconds:endpoint.get('intervalSeconds'),enabled:true,nextCheckAt: new Date()}}, {upsert:true});
  res.status(202).json({data: {message: "Check scheduled"}});
+});
+managementRouter.get('/api-endpoints/:id/history',async(req,res)=>{
+ const endpointId=id.parse(req.params.id);
+ if(!await ApiEndpoint.exists({_id:endpointId})){res.status(404).json({error:{code:'NOT_FOUND',message:'Endpoint not found'}});return;}
+ res.json({data:await ApiCheckResult.find({endpointId}).sort({checkedAt:-1,_id:-1}).limit(100)});
 });
 managementRouter.patch("/incidents/:id", async (req, res) => {
  const input = z.object({status: z.enum(["OPEN", "RESOLVED"]), resolutionNotes: z.string().max(5000).optional()}).strict().parse(req.body);

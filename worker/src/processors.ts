@@ -14,12 +14,18 @@ export async function monitorTarget(target: Document): Promise<void> {
  if (!website.get("ownerId") || String(website.get("ownerId")) !== String(target.get("ownerId"))) return;
  const endpoint = target.get('endpointId') ? await ApiEndpoint.findOne({_id:target.get('endpointId'),websiteId:website._id,ownerId}) : null;
  if(target.get('endpointId') && !endpoint) throw new Error('Invalid workspace monitoring reference');
+ if(endpoint && endpoint.get('isActive') === false) return;
+ const expectedStatus = endpoint?.get('expectedStatus') ?? target.get('expectedStatus') ?? 200;
  let status = "DOWN"; let httpStatus: number | undefined; let responseTime: number | undefined; let errorMessage: string | undefined;
- try {const result = await checkUrl(target.get("url"), target.get("timeoutMs"), target.get("method") ?? "GET");
+ try {const result = await checkUrl(endpoint?.get('url') ?? target.get("url"), endpoint?.get('timeoutMs') ?? target.get("timeoutMs"), endpoint?.get('method') ?? target.get("method") ?? "GET");
  if (target.get("expectedResponse") && !result.body.includes(target.get("expectedResponse"))) errorMessage = "Response does not contain expected content";
  const failures = validateResponse(result.body, endpoint?.get("responseAssertions") ?? []);
- if (failures.length) errorMessage = failures.join("; "); httpStatus = result.httpStatus; responseTime = result.responseTime; status = httpStatus === (target.get("expectedStatus") ?? 200) && !errorMessage ? "UP" : "DOWN";} catch(e) {errorMessage = (e as Error).message;}
+ if (failures.length) errorMessage = failures.join("; "); httpStatus = result.httpStatus; responseTime = result.responseTime;
+ if(httpStatus !== expectedStatus) errorMessage = `Expected HTTP ${expectedStatus}, received ${httpStatus}${errorMessage ? '; '+errorMessage : ''}`;
+ status = !errorMessage ? "UP" : "DOWN";} catch(e) {errorMessage = (e as Error).message;}
  await assertJobLease("monitoring",target);
+ // Discard responses for a configuration changed or paused during the request.
+ if(endpoint && !await ApiEndpoint.exists({_id:endpoint._id,ownerId,updatedAt:endpoint.get('updatedAt'),isActive:{$ne:false}})) return;
  await MonitoringCheck.create({ownerId:website.get("ownerId"), websiteId: website._id, targetId: target._id, status, httpStatus, responseTime, errorMessage});
  if (target.get("endpointId")) await ApiCheckResult.create({endpointId: target.get("endpointId"), ownerId:website.get("ownerId"), websiteId: website._id, status, httpStatus, responseTime, errorMessage, checkedAt: new Date()});
  if (status === "DOWN") {

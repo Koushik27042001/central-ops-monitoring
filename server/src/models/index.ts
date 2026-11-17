@@ -29,6 +29,7 @@ MonitoringTarget.schema.index({websiteId: 1, type: 1}, {unique: true, partialFil
 MonitoringTarget.schema.index({endpointId: 1}, {unique: true, partialFilterExpression: {type: "API"}});
 BlogPost.schema.index({websiteId: 1, slug: 1}, {unique: true});
 MonitoringCheck.schema.index({targetId: 1, checkedAt: -1});
+ApiCheckResult.schema.index({ownerId:1, endpointId:1, checkedAt:-1});
 
 Integration.schema.index({websiteId: 1}, {unique: true});
 PublishingJob.schema.index({status: 1, scheduledAt: 1});

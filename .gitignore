@@ -6,6 +6,7 @@ node_modules/
 .env.*
 .envrc
 !.env.example
+!.example.env
 
 # Credentials and private signing keys.
 *firebase-adminsdk*.json

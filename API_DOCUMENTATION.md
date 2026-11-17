@@ -21,6 +21,7 @@ All paths below use `/api/v1` and require a verified Firebase session JWT cookie
 
 - `GET/POST /api-endpoints`, `GET/PATCH/DELETE /api-endpoints/:id`: API configuration. DELETE pauses it. Fields: websiteId, name, url, method (GET/HEAD), expectedStatus, responseAssertions (array of {path,value?}), timeoutMs, intervalSeconds, isActive.
 - `POST /api-endpoints/:id/check-now`: schedule an enabled target, return 202.
+- `GET /api-endpoints/:id/history`: latest 100 measured results for this endpoint in the current workspace.
 - `GET/POST /maintenance`, `GET/PATCH /maintenance/:id`: maintenance records.
 - `GET /monitoring/overview`, `GET /monitoring/:websiteId/history`, `GET /monitoring/:websiteId/uptime?days=1`.
 - `GET /analytics/performance?days=7`: daily average latency, count and uptime; days 130.
@@ -36,6 +37,10 @@ All paths below use `/api/v1` and require a verified Firebase session JWT cookie
 Editable collection lists accept page (default 1), limit (default 20, max 100), search, and applicable websiteId/clientId/status filters. Incident, notification, audit and integration feeds currently return the most recent 100 records. Uptime is the percentage of successful recorded samples, not a claim of continuous observation.
 
 ## Browser health report
+
+API endpoint lists and detail responses include `status` and `lastCheck` (status, HTTP status, response time, error message, and check time). `isActive` only enables scheduling; it does not mean the endpoint is healthy. Status is `UNKNOWN` until the current configuration has been checked, `UP` when the expected HTTP status and assertions pass, `DOWN` on a mismatch or request failure, and `PAUSED` when the endpoint or parent website is paused. A result older than three configured intervals plus its timeout becomes `STALE`. The monitoring screen refreshes every ten seconds. Checks require the background worker; Check now queues work and does not itself report success.
+
+Monitor the full endpoint URL, for example `https://your-service.onrender.com/api/ai`. A successful `/health` response does not prove another route works. Monitoring supports GET and HEAD; for APIs that only accept POST or require credentials, provide an authorized read-only health endpoint. An unexpected 401, 404, 405, or 500 is reported as DOWN with its HTTP status.
 
 Open GET /api/health on the backend origin, or GET /api/v1/health/status. Both return formatted JSON without authentication or credentials. HTTP 200 means the API is responding and the MongoDB driver reports connected; HTTP 503 means MongoDB is disconnected or not configured. A separate feature map describes database-dependent capabilities. Scheduled monitoring and publishing remain NOT_VERIFIED unless their dependency is unavailable; this report does not probe the worker or external websites. It does not execute login, create records, or run a live database ping. The statusCodeReference explains API/proxy response codes and is not a list of simultaneous live results.
 

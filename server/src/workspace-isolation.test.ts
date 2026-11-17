@@ -41,6 +41,51 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await mongoose.disconnect();await mongo?.stop();});
 describe('private freelancer workspaces',()=>{
+ it('shows measured endpoint health, stale checks, configuration changes, pauses and private history',async()=>{
+  const client=await Client.create({ownerId:owners.a,name:'API client'});
+  const site=await Website.create({ownerId:owners.a,clientId:client._id,name:'API site'});
+  const endpoint=await ApiEndpoint.create({ownerId:owners.a,websiteId:site._id,name:'AI API',url:'https://example.com/api/ai',isActive:true,intervalSeconds:60,timeoutMs:15000});
+  const get=()=>request(app).get('/api/v1/api-endpoints/'+endpoint._id);
+  expect((await get()).body.data).toMatchObject({status:'UNKNOWN',lastCheck:null});
+  expect((await request(app).post('/api/v1/api-endpoints/'+endpoint._id+'/check-now').set('Origin','http://localhost:5173')).status).toBe(202);
+  expect(await MonitoringTarget.countDocuments({ownerId:owners.a,endpointId:endpoint._id,enabled:true,url:'https://example.com/api/ai'})).toBe(1);
+  await ApiCheckResult.create({ownerId:owners.b,websiteId:site._id,endpointId:endpoint._id,status:'UP',checkedAt:new Date(Date.now()+1000)});
+  expect((await get()).body.data.status).toBe('UNKNOWN');
+  const check=await ApiCheckResult.create({ownerId:owners.a,websiteId:site._id,endpointId:endpoint._id,status:'DOWN',httpStatus:500,responseTime:80,errorMessage:'Expected HTTP 200, received 500',checkedAt:new Date(Date.now()+10)});
+  expect((await get()).body.data).toMatchObject({status:'DOWN',isActive:true,lastCheck:{httpStatus:500,status:'DOWN'}});
+  expect((await request(app).get('/api/v1/api-endpoints')).body.data[0].status).toBe('DOWN');
+  const history=await request(app).get('/api/v1/api-endpoints/'+endpoint._id+'/history');
+  expect(history.body.data).toHaveLength(1);expect(history.body.data[0].status).toBe('DOWN');
+  const foreign=await ApiEndpoint.findOne({ownerId:owners.b});
+  expect((await request(app).get('/api/v1/api-endpoints/'+foreign!._id+'/history')).status).toBe(404);
+  await ApiEndpoint.collection.updateOne({_id:endpoint._id},{$set:{updatedAt:new Date(Date.now()-600000)}});
+  await ApiCheckResult.updateOne({_id:check._id},{$set:{checkedAt:new Date(Date.now()-300000),status:'UP',httpStatus:200}});
+  expect((await get()).body.data.status).toBe('STALE');
+  await ApiEndpoint.updateOne({_id:endpoint._id},{$set:{url:'https://example.com/api/changed'}});
+  expect((await get()).body.data.status).toBe('UNKNOWN');
+  await ApiEndpoint.updateOne({_id:endpoint._id},{$set:{isActive:false}});
+  expect((await get()).body.data.status).toBe('PAUSED');
+  await ApiEndpoint.updateOne({_id:endpoint._id},{$set:{isActive:true}});
+  await Website.updateOne({_id:site._id},{$set:{monitoringEnabled:false}});
+  expect((await get()).body.data.status).toBe('PAUSED');
+  expect((await request(app).post('/api/v1/api-endpoints/'+endpoint._id+'/check-now').set('Origin','http://localhost:5173')).status).toBe(409);
+ });
+ it('records a failing API response as DOWN and recovers after a successful response',async()=>{
+  const client=await Client.create({ownerId:owners.a,name:'Own client'});
+  const site=await Website.create({ownerId:owners.a,clientId:client._id,name:'Own site'});
+  const endpoint=await ApiEndpoint.create({ownerId:owners.a,websiteId:site._id,name:'AI',url:'https://example.com/api/ai',isActive:true});
+  const target=await MonitoringTarget.create({ownerId:owners.a,websiteId:site._id,endpointId:endpoint._id,type:'API',name:'AI',url:endpoint.get('url'),expectedStatus:200});
+  const {monitorTarget}=await import(resolve(process.cwd(),'../worker/src/processors.ts'));
+  await monitorTarget(target);
+  expect((await request(app).get('/api/v1/api-endpoints/'+endpoint._id)).body.data).toMatchObject({status:'DOWN',lastCheck:{httpStatus:500,errorMessage:'Expected HTTP 200, received 500'}});
+  workerCheck.mockResolvedValueOnce({httpStatus:200,responseTime:25,body:'{}'});
+  await monitorTarget(target);
+  expect((await request(app).get('/api/v1/api-endpoints/'+endpoint._id)).body.data).toMatchObject({status:'UP',lastCheck:{httpStatus:200,responseTime:25}});
+  await ApiEndpoint.updateOne({_id:endpoint._id},{$set:{isActive:false}});
+  const count=await ApiCheckResult.countDocuments({endpointId:endpoint._id});
+  await monitorTarget(target);
+  expect(await ApiCheckResult.countDocuments({endpointId:endpoint._id})).toBe(count);
+ });
  it('creates and lists a website with every monitoring URL using runtime database settings',async()=>{
   const previous=mongoose.get('strictQuery');mongoose.set('strictQuery',true);
   try{
