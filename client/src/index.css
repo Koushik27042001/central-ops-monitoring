@@ -61,3 +61,5 @@
 .login-brand{display:block;width:210px;max-width:100%}.footer-brand{display:block;width:120px;max-width:100%}.content>footer{align-items:center;gap:16px}
 
 .badge.stale{background:#fff8e5;color:#b98a1e}
+
+.api-console-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}.api-console-toolbar label{flex:1;min-width:180px}.api-response-content{padding:24px;display:grid;gap:14px}.api-response-content pre{margin:0;padding:16px;background:#101d32;color:#e2e8f0;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}.api-test-result{position:relative}

@@ -17,7 +17,9 @@ export async function monitorTarget(target: Document): Promise<void> {
  if(endpoint && endpoint.get('isActive') === false) return;
  const expectedStatus = endpoint?.get('expectedStatus') ?? target.get('expectedStatus') ?? 200;
  let status = "DOWN"; let httpStatus: number | undefined; let responseTime: number | undefined; let errorMessage: string | undefined;
+ let responsePreview: string | undefined; let responseTruncated = false;
  try {const result = await checkUrl(endpoint?.get('url') ?? target.get("url"), endpoint?.get('timeoutMs') ?? target.get("timeoutMs"), endpoint?.get('method') ?? target.get("method") ?? "GET");
+ responsePreview=result.body.slice(0,8192);responseTruncated=result.body.length>8192;
  if (target.get("expectedResponse") && !result.body.includes(target.get("expectedResponse"))) errorMessage = "Response does not contain expected content";
  const failures = validateResponse(result.body, endpoint?.get("responseAssertions") ?? []);
  if (failures.length) errorMessage = failures.join("; "); httpStatus = result.httpStatus; responseTime = result.responseTime;
@@ -27,7 +29,7 @@ export async function monitorTarget(target: Document): Promise<void> {
  // Discard responses for a configuration changed or paused during the request.
  if(endpoint && !await ApiEndpoint.exists({_id:endpoint._id,ownerId,updatedAt:endpoint.get('updatedAt'),isActive:{$ne:false}})) return;
  await MonitoringCheck.create({ownerId:website.get("ownerId"), websiteId: website._id, targetId: target._id, status, httpStatus, responseTime, errorMessage});
- if (target.get("endpointId")) await ApiCheckResult.create({endpointId: target.get("endpointId"), ownerId:website.get("ownerId"), websiteId: website._id, status, httpStatus, responseTime, errorMessage, checkedAt: new Date()});
+ if (target.get("endpointId")) await ApiCheckResult.create({endpointId: target.get("endpointId"), ownerId:website.get("ownerId"), websiteId: website._id, status, httpStatus, responseTime, errorMessage, responsePreview, responseTruncated, checkedAt: new Date()});
  if (status === "DOWN") {
   const recent = await MonitoringCheck.find({targetId: target._id,ownerId}).sort({checkedAt: -1}).limit(3);
   if (recent.length === 3 && recent.every(c => c.get("status") === "DOWN")) {

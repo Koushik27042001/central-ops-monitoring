@@ -21,6 +21,7 @@ All paths below use `/api/v1` and require a verified Firebase session JWT cookie
 
 - `GET/POST /api-endpoints`, `GET/PATCH/DELETE /api-endpoints/:id`: API configuration. DELETE pauses it. Fields: websiteId, name, url, method (GET/HEAD), expectedStatus, responseAssertions (array of {path,value?}), timeoutMs, intervalSeconds, isActive.
 - `POST /api-endpoints/:id/check-now`: schedule an enabled target, return 202.
+- `POST /api-endpoints/:id/test`: immediately test the saved GET/HEAD configuration without a worker. Returns the measured UP/DOWN result, HTTP code, elapsed response time, assertion failures, and a response preview capped at 8,192 characters. Results are stored in private history for 30 days; failures to reach the destination are returned as measured DOWN results, not successful HTTP probes. If configuration changes during the request, the response sets `configurationChanged: true` and does not store that result. Manual tests can run while scheduled monitoring is paused and are limited to 40 per minute per workspace.
 - `GET /api-endpoints/:id/history`: latest 100 measured results for this endpoint in the current workspace.
 - `GET/POST /maintenance`, `GET/PATCH /maintenance/:id`: maintenance records.
 - `GET /monitoring/overview`, `GET /monitoring/:websiteId/history`, `GET /monitoring/:websiteId/uptime?days=1`.
@@ -37,6 +38,8 @@ All paths below use `/api/v1` and require a verified Firebase session JWT cookie
 Editable collection lists accept page (default 1), limit (default 20, max 100), search, and applicable websiteId/clientId/status filters. Incident, notification, audit and integration feeds currently return the most recent 100 records. Uptime is the percentage of successful recorded samples, not a claim of continuous observation.
 
 ## Browser health report
+
+The API monitoring dashboard supports immediate tests of individual endpoints or the current page (up to 20, with three requests in flight), website filtering, health counts for that page, and history with response inspection. Register URLs explicitly; this does not discover routes or perform a complete application test suite. Scheduled API checks also retain bounded response previews. Only authorized workspace members can inspect these responses.
 
 API endpoint lists and detail responses include `status` and `lastCheck` (status, HTTP status, response time, error message, and check time). `isActive` only enables scheduling; it does not mean the endpoint is healthy. Status is `UNKNOWN` until the current configuration has been checked, `UP` when the expected HTTP status and assertions pass, `DOWN` on a mismatch or request failure, and `PAUSED` when the endpoint or parent website is paused. A result older than three configured intervals plus its timeout becomes `STALE`. The monitoring screen refreshes every ten seconds. Checks require the background worker; Check now queues work and does not itself report success.
 

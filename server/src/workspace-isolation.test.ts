@@ -9,6 +9,8 @@ const workerCheck=vi.hoisted(()=>vi.fn(async()=>({httpStatus:500,responseTime:10
 vi.mock('./services/auth.js', async importOriginal => ({...await importOriginal<object>(),authenticate:(req:any,res:any,next:any)=>{res.locals.user={_id:req.headers['x-test-owner'] || owners.a};next();}}));
 vi.mock('../dist/models/index.js',()=>import('./models/index.js'));
 vi.mock('../dist/services/outbound.js',()=>({checkUrl:workerCheck}));
+vi.mock('../dist/services/secrets.js',()=>import('./services/secrets.js'));
+vi.mock('./services/outbound.js',()=>({checkUrl:workerCheck}));
 vi.mock('../dist/services/background-jobs.js',()=>({assertJobLease:vi.fn(),finishPublishingJob:vi.fn(),retryPublishingJob:vi.fn(async()=>true)}));
 import { app } from './app.js';
 import { User, Client, Website, MonitoringTarget, MonitoringCheck, BlogPost, Integration, Incident, Notification, AuditLog, ApiEndpoint, ApiCheckResult, SupportTicket, MaintenanceRecord, BlogRevision, PublishingJob } from './models/index.js';
@@ -23,6 +25,7 @@ beforeAll(async()=>{
  await mongoose.connect(mongo.getUri(),{dbName:'orbitops_isolation_test'});
 },90000);
 beforeEach(async()=>{
+ workerCheck.mockReset();workerCheck.mockResolvedValue({httpStatus:500,responseTime:10,body:'{}'});
  expect(mongoose.connection.name).toBe('orbitops_isolation_test');
  await Promise.all(Object.values(mongoose.models).map(model=>model.deleteMany({})));
  foreignClient=await Client.create({ownerId:owners.b,name:'Private B'});
@@ -41,6 +44,51 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await mongoose.disconnect();await mongo?.stop();});
 describe('private freelancer workspaces',()=>{
+ it('runs a direct API test, returns a bounded response and persists private history without a worker',async()=>{
+  const client=await Client.create({ownerId:owners.a,name:'Test client'});
+  const site=await Website.create({ownerId:owners.a,clientId:client._id,name:'Test site'});
+  const endpoint=await ApiEndpoint.create({ownerId:owners.a,websiteId:site._id,name:'API',url:'https://example.com/api',method:'GET',expectedStatus:200,isActive:true,responseAssertions:[{path:'ready',value:true}]});
+  workerCheck.mockResolvedValueOnce({httpStatus:200,responseTime:15,body:'{"ready":false}'});
+  const response=await request(app).post('/api/v1/api-endpoints/'+endpoint._id+'/test').set('Origin','http://localhost:5173');
+  expect(response.status).toBe(200);expect(response.body.data).toMatchObject({status:'DOWN',httpStatus:200,responseTime:15,errorMessage:'ready does not match expected value',responsePreview:'{"ready":false}'});
+  expect(await ApiCheckResult.countDocuments({ownerId:owners.a,endpointId:endpoint._id})).toBe(1);
+  workerCheck.mockResolvedValueOnce({httpStatus:200,responseTime:10,body:'{"ready":true}'+ ' '.repeat(9000)});
+  const success=await request(app).post('/api/v1/api-endpoints/'+endpoint._id+'/test').set('Origin','http://localhost:5173');
+  expect(success.body.data.status).toBe('UP');expect(success.body.data.responsePreview).toHaveLength(8192);expect(success.body.data.responseTruncated).toBe(true);
+  workerCheck.mockRejectedValueOnce(new Error('Request timed out'));
+  const timeout=await request(app).post('/api/v1/api-endpoints/'+endpoint._id+'/test').set('Origin','http://localhost:5173');
+  expect(timeout.body.data).toMatchObject({status:'DOWN',errorMessage:'Request timed out'});
+  const foreign=await ApiEndpoint.findOne({ownerId:owners.b});
+  expect((await request(app).post('/api/v1/api-endpoints/'+foreign!._id+'/test').set('Origin','http://localhost:5173')).status).toBe(404);
+ });
+ it('publishes an edited blog to the same client website and preserves its previous revision',async()=>{
+  const previous=env.INTEGRATION_ENCRYPTION_KEY;env.INTEGRATION_ENCRYPTION_KEY='1'.repeat(64);
+  try{
+   const {encryptSecret}=await import('./services/secrets.js');
+   const client=await Client.create({ownerId:owners.a,name:'Publishing client'});
+   const site=await Website.create({ownerId:owners.a,clientId:client._id,name:'Publishing site'});
+   await Integration.create({ownerId:owners.a,websiteId:site._id,endpointBaseUrl:'https://example.com/api/integrations',credentialReference:encryptSecret('t'.repeat(40)),permissions:['blogs:write'],isActive:true});
+   const created=await request(app).post('/api/v1/blogs').set('Origin','http://localhost:5173').send({clientId:String(client._id),websiteId:String(site._id),title:'First title',slug:'first',content:'First version'});
+   expect(created.status).toBe(201);
+   const blogId=created.body.data._id;
+   const {publishRecord}=await import(resolve(process.cwd(),'../worker/src/processors.ts'));
+   const publish=()=>request(app).post('/api/v1/blogs/'+blogId+'/publish').set('Origin','http://localhost:5173').send({});
+   const first=await publish();expect(first.status).toBe(202);
+   workerCheck.mockResolvedValueOnce({httpStatus:200,responseTime:10,body:'{}'});
+   await publishRecord((await PublishingJob.findById(first.body.data._id))!);
+   expect((await BlogPost.findById(blogId))?.get('status')).toBe('PUBLISHED');
+   const updated=await request(app).patch('/api/v1/blogs/'+blogId).set('Origin','http://localhost:5173').send({content:'Updated version'});
+   expect(updated.body.data.status).toBe('DRAFT');
+   const revisions=await request(app).get('/api/v1/blogs/'+blogId+'/revisions');
+   expect(revisions.body.data[0].snapshot.content).toBe('First version');
+   const second=await publish();expect(second.status).toBe(202);expect(second.body.data._id).not.toBe(first.body.data._id);
+   workerCheck.mockResolvedValueOnce({httpStatus:200,responseTime:10,body:'{}'});
+   await publishRecord((await PublishingJob.findById(second.body.data._id))!);
+   const last=workerCheck.mock.calls.at(-1) as unknown as [string,number,string,{body:string}];
+   expect(last[0]).toBe('https://example.com/api/integrations/blogs');
+   expect(JSON.parse(last[3].body)).toMatchObject({_id:blogId,websiteId:String(site._id),content:'Updated version'});
+  }finally{env.INTEGRATION_ENCRYPTION_KEY=previous;}
+ });
  it('shows measured endpoint health, stale checks, configuration changes, pauses and private history',async()=>{
   const client=await Client.create({ownerId:owners.a,name:'API client'});
   const site=await Website.create({ownerId:owners.a,clientId:client._id,name:'API site'});

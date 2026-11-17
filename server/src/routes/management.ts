@@ -1,5 +1,6 @@
 import { inWorkspace, workspaceModel } from "../services/workspace.js";
 import { endpointHealth } from '../services/endpoint-health.js';
+import { probeEndpoint } from '../services/probe-endpoint.js';
 import { ApiCheckResult as RawApiCheckResult } from '../models/index.js';
 import { FIREBASE_SESSION_COOKIE, firebaseSessionCookie, sessionCookieOptions, sessionLifetimeMs } from '../services/session.js';
 import { firebaseAdminAuth } from "../services/firebase.js";
@@ -150,7 +151,8 @@ for (const resource of resources) {
   }
   if (path === "blogs" && existing) await BlogRevision.create({blogId: existing._id, userId: res.locals.user._id, snapshot: existing.toObject()});
   res.locals.saveStage = `${path}:save-record`;
-  const data = method === "post" ? await model.create(input) : await model.findByIdAndUpdate(id.parse((req.params as Record<string, string>).id), {$set: input}, {new: true, runValidators: true});
+  const changes = path === 'blogs' && method === 'patch' && ['title','slug','content','excerpt'].some(key=>key in input) && (!('status' in input) || input.status !== 'ARCHIVED') ? {...input,status:'DRAFT'} : input;
+  const data = method === "post" ? await model.create(input) : await model.findByIdAndUpdate(id.parse((req.params as Record<string, string>).id), {$set: changes}, {new: true, runValidators: true});
   if (!data) {res.status(404).json({error: {code: "NOT_FOUND", message: "Record not found"}}); return;}
   res.locals.saveStage = `${path}:sync-monitoring`;
   if (path === "websites") {await syncTargets(data._id); if (!data.get("monitoringEnabled")) await Website.updateOne({_id: data._id}, {$set: {status: "PAUSED"}});}
@@ -220,6 +222,16 @@ managementRouter.get('/api-endpoints/:id/history',async(req,res)=>{
  if(!await ApiEndpoint.exists({_id:endpointId})){res.status(404).json({error:{code:'NOT_FOUND',message:'Endpoint not found'}});return;}
  res.json({data:await ApiCheckResult.find({endpointId}).sort({checkedAt:-1,_id:-1}).limit(100)});
 });
+managementRouter.post('/api-endpoints/:id/test',rateLimit({windowMs:60000,limit:40,keyGenerator:(_req,res)=>String(res.locals.user._id)}),async(req,res)=>{
+ const endpoint=await ApiEndpoint.findById(id.parse(req.params.id));
+ if(!endpoint){res.status(404).json({error:{code:'NOT_FOUND',message:'Endpoint not found'}});return;}
+ if(!await Website.exists({_id:endpoint.get('websiteId')})){res.status(422).json({error:{code:'INVALID_WEBSITE',message:'Website not found'}});return;}
+ const result=await probeEndpoint({url:endpoint.get('url'),method:endpoint.get('method'),timeoutMs:endpoint.get('timeoutMs'),expectedStatus:endpoint.get('expectedStatus'),responseAssertions:endpoint.get('responseAssertions')});
+ // Keep history for the configuration actually tested, even if edited mid-request.
+ const current=await ApiEndpoint.exists({_id:endpoint._id,updatedAt:endpoint.get('updatedAt')});
+ const data=current ? await ApiCheckResult.create({...result,endpointId:endpoint._id,websiteId:endpoint.get('websiteId')}) : result;
+ res.json({data,configurationChanged:!current});
+});
 managementRouter.patch("/incidents/:id", async (req, res) => {
  const input = z.object({status: z.enum(["OPEN", "RESOLVED"]), resolutionNotes: z.string().max(5000).optional()}).strict().parse(req.body);
  const data = await Incident.findByIdAndUpdate(id.parse(req.params.id), {$set: {...input, resolvedAt: input.status === "RESOLVED" ? new Date() : null}}, {new: true});
@@ -262,6 +274,7 @@ managementRouter.post("/blogs/:id/publish", async(req,res)=>{
  const input=z.object({scheduledAt:z.coerce.date().optional()}).strict().parse(req.body ?? {});
  const blog=await BlogPost.findById(id.parse(req.params.id));
  if(!blog){res.status(404).json({error:{code:'NOT_FOUND',message:'Blog not found'}});return;}
+ if(blog.get('status')==='ARCHIVED'){res.status(409).json({error:{code:'ARCHIVED',message:'Restore this post to a draft before publishing'}});return;}
  const idempotencyKey=hashToken(String(blog._id)+':'+new Date(blog.get('updatedAt')).toISOString()+':'+(input.scheduledAt?.toISOString() ?? 'now'));
  const existing=await PublishingJob.findOne({idempotencyKey});
  if(existing){res.status(202).json({data:existing});return;}
