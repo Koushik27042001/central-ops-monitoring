@@ -130,7 +130,9 @@ for (const resource of resources) {
  });
  managementRouter.get(`/${path}/:id`, async (req, res) => {const data = await model.findById(id.parse(req.params.id)); res.status(data ? 200 : 404).json(data ? {data} : {error: {code: "NOT_FOUND", message: "Record not found"}});});
  for (const method of ["post", "patch"] as const) managementRouter[method](`/${path}${method === "patch" ? "/:id" : ""}`, async (req, res) => {
+  res.locals.saveStage = `${path}:validate`;
   const input = method === "post" ? schema.parse(req.body) : parsePatch(schema, req.body);
+  res.locals.saveStage = `${path}:check-related-records`;
   const limit = path === 'websites' ? env.WORKSPACE_MAX_WEBSITES : path === 'api-endpoints' ? env.WORKSPACE_MAX_ENDPOINTS : env.WORKSPACE_MAX_RECORDS;
   if (method === 'post' && await model.countDocuments() >= limit) {res.status(409).json({error:{code:'WORKSPACE_LIMIT',message:`Your workspace has reached its ${path} limit (${limit}).`}});return;}
   const existing = method === "patch" ? await model.findById(id.parse((req.params as Record<string, string>).id)) : null;
@@ -144,10 +146,13 @@ for (const resource of resources) {
    if (!website || String(website.get("clientId")) !== String(clientId)) {res.status(422).json({error: {code: "INVALID_WEBSITE", message: "Website and client must match"}}); return;}
   }
   if (path === "blogs" && existing) await BlogRevision.create({blogId: existing._id, userId: res.locals.user._id, snapshot: existing.toObject()});
+  res.locals.saveStage = `${path}:save-record`;
   const data = method === "post" ? await model.create(input) : await model.findByIdAndUpdate(id.parse((req.params as Record<string, string>).id), {$set: input}, {new: true, runValidators: true});
   if (!data) {res.status(404).json({error: {code: "NOT_FOUND", message: "Record not found"}}); return;}
+  res.locals.saveStage = `${path}:sync-monitoring`;
   if (path === "websites") {await syncTargets(data._id); if (!data.get("monitoringEnabled")) await Website.updateOne({_id: data._id}, {$set: {status: "PAUSED"}});}
   if (path === "api-endpoints") await MonitoringTarget.updateOne({endpointId: data._id}, {$set: {endpointId: data._id, websiteId: data.get("websiteId"), type: "API", name: data.get("name"), url: data.get("url"), method: data.get("method"), expectedStatus: data.get("expectedStatus"), timeoutMs: data.get("timeoutMs"), intervalSeconds: data.get("intervalSeconds"), enabled: data.get("isActive"), nextCheckAt: new Date()}}, {upsert: true});
+  res.locals.saveStage = `${path}:save-audit`;
   await AuditLog.create({userId: res.locals.user._id, action: method, entityType: path, entityId: String(data._id)});
   res.status(method === "post" ? 201 : 200).json({data});
  });

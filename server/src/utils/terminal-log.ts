@@ -1,4 +1,4 @@
-type LogRecord={time?:number;level?:number;msg?:string;area?:string;hint?:string;port?:number};
+type LogRecord={time?:number;level?:number;msg?:string;area?:string;hint?:string;port?:number;diagnostic?:string};
 const clean=(value:string)=>value.replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').trim();
 export function formatTerminalLog(record:LogRecord):string {
  const time=new Date(record.time ?? Date.now()).toLocaleTimeString('en-GB',{hour12:false});
@@ -6,6 +6,7 @@ export function formatTerminalLog(record:LogRecord):string {
  const area=clean(record.area || 'Platform').slice(0,20).padEnd(20);
  let line=`${time}  ${status.padEnd(8)}  ${area}  ${clean(record.msg || 'Status updated')}`;
  if(record.hint)line+=`\n${' '.repeat(42)}Next step: ${clean(record.hint)}`;
+ if(record.diagnostic)line+=`\n${' '.repeat(42)}Diagnostic: ${clean(record.diagnostic)}`;
  return line+'\n';
 }
 

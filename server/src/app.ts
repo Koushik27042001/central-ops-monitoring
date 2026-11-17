@@ -10,6 +10,8 @@ import { logger } from "./utils/logger.js";
 import { managementRouter } from "./routes/management.js";
 import { demoEnquiryRouter } from "./routes/demo-enquiries.js";
 import { ZodError } from "zod";
+import { randomUUID } from 'node:crypto';
+import { requestDiagnostic } from './utils/request-diagnostic.js';
 
 export const app = express();
 
@@ -70,11 +72,14 @@ app.use(
     if (typeof error === "object" && error && "status" in error && error.status === 413) {response.status(413).json({error: {code: "PAYLOAD_TOO_LARGE", message: "Request body exceeds 100 KiB"}}); return;}
     if (error instanceof SyntaxError && "body" in error) { response.status(400).json({error: {code: "INVALID_JSON", message: "Invalid JSON body"}}); return; }
     if (typeof error === "object" && error && "code" in error && error.code === 11000) {response.status(409).json({error: {code: "CONFLICT", message: "Record already exists"}}); return;}
-    logger.error({ err: error,area:'Website service',hint:'Try again. If this continues, contact the person hosting this application.' }, "A request could not be completed.");
+    const reference = randomUUID();
+    const diagnostic = requestDiagnostic(error, response.locals.saveStage ?? 'request', reference);
+    logger.error({ err: error,diagnostic,area:'Website service',hint:'Use the diagnostic reference and stage to investigate this failure.' }, "A request could not be completed.");
     response.status(500).json({
       error: {
         code: "INTERNAL_SERVER_ERROR",
-        message: "An unexpected error occurred.",
+        message: `An unexpected error occurred. Reference: ${reference}`,
+        reference,
       },
     });
   },
