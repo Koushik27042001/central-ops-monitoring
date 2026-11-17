@@ -5,6 +5,8 @@ Base: /api/v1. Success responses use {data}; lists also include pagination {page
 Public: GET /health, /health/live, /health/ready; GET /auth/config returns the selected provider and publicRegistration flag. POST /auth/login accepts email/password only in local auth mode. Public Firebase signup/sign-in runs through the Firebase client SDK; After a fresh Firebase sign-in, POST /auth/session with {idToken} and an allowed Origin. This exchanges the ID token for a signed, HttpOnly centralops_firebase session cookie. Protected requests use that cookie, not Bearer ID tokens. Session lifetime is AUTH_SESSION_DAYS (default 2), without sliding renewal.
 Authenticated: GET /auth/me; POST /auth/logout.
 
+`GET /auth/session` checks the current browser session. Without a cookie it returns `200 {data:null}`, so loading the login page does not create an expected 401 console entry. With a cookie it performs normal signature, expiry, revocation, account and workspace checks. Invalid or expired cookies still return 401; protected data routes continue to require authentication.
+
 Clients, websites, tickets, blogs support GET /resource, POST /resource, GET /resource/:id, PATCH /resource/:id, DELETE /resource/:id. DELETE archives records (websites pause monitoring). Do not delete tickets; use PATCH status RESOLVED. Blogs support DRAFT and ARCHIVED only; no remote publishing endpoint is implemented.
 
 Lists accept page (default 1), limit (max 100), search, clientId, websiteId. Fields are defined by server/src/validators/index.ts. Identifiers must be MongoDB ObjectIds. Websites require a valid client. Tickets and blogs must reference a matching client and website.

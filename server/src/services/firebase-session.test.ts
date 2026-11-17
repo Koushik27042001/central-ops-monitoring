@@ -21,6 +21,15 @@ describe('fixed two-day JWT sessions',()=>{
   vi.spyOn(User,'findOne').mockResolvedValue(null);
  });
  afterEach(()=>{Object.assign(env,previous);vi.restoreAllMocks();});
+ it('returns an empty session without a 401 on an ordinary signed-out visit',async()=>{
+  const response=await request(app).get('/api/v1/auth/session');
+  expect(response.status).toBe(200);expect(response.body).toEqual({data:null});
+  expect(sdk.verifySessionCookie).not.toHaveBeenCalled();
+ });
+ it('still rejects an invalid cookie on the session status endpoint',async()=>{
+  sdk.verifySessionCookie.mockRejectedValue(new Error('invalid'));
+  expect((await request(app).get('/api/v1/auth/session').set('Cookie','centralops_firebase=bad')).status).toBe(401);
+ });
  it('creates an HttpOnly session JWT with exactly 172800 seconds of cookie lifetime',async()=>{
   const response=await login().send({idToken:'fresh-id-token'});
   expect(response.status).toBe(200);
@@ -77,9 +86,11 @@ describe('fixed two-day JWT sessions',()=>{
  it('reports expiry to the browser without extending the JWT on each request',async()=>{
   const user={_id:new mongoose.Types.ObjectId(),get:(key:string)=>({isActive:true,role:'OWNER',firebaseUid:'user-a'}[key])};
   vi.spyOn(User,'findOneAndUpdate').mockResolvedValue(user as never);
-  const response=await request(app).get('/api/v1/auth/me').set('Cookie','centralops_firebase=valid').set('X-Account-Uid','user-a');
-  expect(response.status).toBe(200);expect(Date.parse(response.body.data.sessionExpiresAt)).toBe((now+172800)*1000);
-  expect(sdk.createSessionCookie).not.toHaveBeenCalled();expect(response.headers['set-cookie']).toBeUndefined();
+  for(const path of ['/api/v1/auth/me','/api/v1/auth/session']){
+   const response=await request(app).get(path).set('Cookie','centralops_firebase=valid').set('X-Account-Uid','user-a');
+   expect(response.status).toBe(200);expect(Date.parse(response.body.data.sessionExpiresAt)).toBe((now+172800)*1000);
+   expect(sdk.createSessionCookie).not.toHaveBeenCalled();expect(response.headers['set-cookie']).toBeUndefined();
+  }
  });
  it('revokes the signed-in account and clears cookies at logout',async()=>{
   const user={_id:new mongoose.Types.ObjectId(),get:(key:string)=>({isActive:true,role:'OWNER',firebaseUid:'user-a'}[key])};

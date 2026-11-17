@@ -1,5 +1,5 @@
 import { inWorkspace, workspaceModel } from "../services/workspace.js";
-import { FIREBASE_SESSION_COOKIE, sessionCookieOptions, sessionLifetimeMs } from '../services/session.js';
+import { FIREBASE_SESSION_COOKIE, firebaseSessionCookie, sessionCookieOptions, sessionLifetimeMs } from '../services/session.js';
 import { firebaseAdminAuth } from "../services/firebase.js";
 import { encryptSecret } from "../services/secrets.js";
 import { checkUrl } from "../services/outbound.js";
@@ -74,6 +74,13 @@ managementRouter.post('/auth/session',rateLimit({windowMs:900000,limit:20}),asyn
  catch{res.status(503).json({error:{code:'SESSION_UNAVAILABLE',message:'Unable to start a session. Please try again.'}});return;}
  res.cookie(FIREBASE_SESSION_COOKIE,cookie,{...sessionCookieOptions,maxAge:expiresIn}).json({data:{expiresAt:new Date(Date.now()+expiresIn).toISOString()}});
 });
+// An ordinary signed-out visit is not an authentication failure. Existing
+// cookies still go through the full signature, revocation and workspace checks.
+managementRouter.get('/auth/session',(req,res,next)=>{
+ const token=env.AUTH_PROVIDER==='firebase'?firebaseSessionCookie(req.headers.cookie):cookieToken(req.headers.cookie);
+ if(!token){res.json({data:null});return;}
+ return authenticate(req,res,next);
+},(_req,res)=>res.json({data:{...(res.locals.user.toObject?.() ?? res.locals.user),sessionExpiresAt:res.locals.sessionExpiresAt}}));
 managementRouter.get('/auth/config', (_req,res)=>res.json({data:{provider:env.AUTH_PROVIDER, publicRegistration:env.AUTH_PROVIDER === 'firebase' && env.PUBLIC_REGISTRATION}}));
 managementRouter.use(authenticate);
 managementRouter.use((_req,res,next)=>inWorkspace(res.locals.user._id,()=>next()));

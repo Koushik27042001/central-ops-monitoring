@@ -59,3 +59,10 @@ test('reviewed build install scripts are approved for the locked package version
  }
  assert.equal(root.allowScripts['*'],undefined);
 });
+test('HTML allows sign-in popups while API responses retain strict isolation',()=>{
+ const global=config.routes.find(route=>route.continue);
+ const proxy=config.routes.find(route=>route.env?.includes('RENDER_API_ORIGIN'));
+ assert.equal(global.headers['Cross-Origin-Opener-Policy'],'same-origin-allow-popups');
+ assert.equal(proxy.headers['Cross-Origin-Opener-Policy'],'same-origin');
+ assert.equal(global.headers['X-Frame-Options'],'DENY');
+});

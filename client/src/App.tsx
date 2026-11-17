@@ -71,7 +71,7 @@ function Workspace() {
  },[user?.sessionExpiresAt,clearWorkspace]);
  useEffect(()=>{if(user?.onboardingStatus==='PENDING')setSidebarCollapsed(false);},[user?.onboardingStatus]);
  useEffect(()=>{api('auth/config').then(r=>setPublicRegistration(r.data.publicRegistration)).catch(()=>{});},[]);
- useEffect(()=>{api('auth/me').then(r=>setUser(r.data)).catch(e=>{if(e.message !== 'Sign in required') setError(e.message);}).finally(()=>setChecking(false));},[]);
+ useEffect(()=>{api('auth/session').then(r=>setUser(r.data)).catch(e=>{if(e.message !== 'Sign in required') setError(e.message);}).finally(()=>setChecking(false));},[]);
  useEffect(()=>{setSearch('');setPage(1);setEditing(null);setError('');setNotice('');},[section]);
  useEffect(()=>{
   if(!user) return;

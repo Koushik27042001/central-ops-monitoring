@@ -10,6 +10,7 @@
       "headers": {
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
         "X-Frame-Options": "DENY"
       },
       "continue": true
@@ -18,7 +19,7 @@
       "src": "/api(?:/(.*))?$",
       "dest": "$RENDER_API_ORIGIN/api/$1",
       "env": ["RENDER_API_ORIGIN"],
-      "headers": { "Cache-Control": "private, no-store" }
+      "headers": { "Cache-Control": "private, no-store", "Cross-Origin-Opener-Policy": "same-origin" }
     },
     { "handle": "filesystem" },
     { "src": "/((?!api(?:/|$)).*)", "dest": "/index.html" }
